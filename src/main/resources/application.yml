@@ -1,0 +1,91 @@
+server:
+  port: 8080
+  netty:
+    connection-timeout: 2000ms
+    idle-timeout: 60s
+
+spring:
+  application:
+    name: payments-service
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/payments_db
+      auto-index-creation: true
+      repositories:
+        type: reactive
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      antifraudService:
+        registerHealthIndicator: true
+        slidingWindowType: TIME_BASED
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+      coreBankingService:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 2
+  retry:
+    instances:
+      antifraudService:
+        maxRetryAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+      coreBankingService:
+        maxRetryAttempts: 2
+        waitDuration: 1000ms
+      paymentGateway:
+        maxRetryAttempts: 4
+        waitDuration: 300ms
+  bulkhead:
+    instances:
+      antifraudService:
+        maxConcurrentCalls: 100
+      coreBankingService:
+        maxConcurrentCalls: 50
+      paymentGateway:
+        maxConcurrentCalls: 200
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics, circuitbreakers, retries, bulkhead
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+    retries:
+      enabled: true
+    bulkhead:
+      enabled: true
+
+external-services:
+  antifraud:
+    base-url: http://antifraud-service:8081
+    timeout: 1500ms
+    retry-attempts: 3
+  risk-bureau:
+    base-url: http://risk-bureau-service:8082
+    timeout: 2000ms
+  core-banking:
+    base-url: http://core-banking-service:8083
+    timeout: 2500ms
+    retry-attempts: 2
+  payment-gateway:
+    base-url: http://payment-gateway-service:8084
+    timeout: 1800ms
+    retry-attempts: 4
+  credit-originator:
+    base-url: http://credit-originator-service:8085
+    timeout: 2200ms
